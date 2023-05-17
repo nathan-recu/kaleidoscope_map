@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <base target="_top" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>KittenLayer - Leaflet</title>
+
+    <link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />
+
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+      integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI="
+      crossorigin=""
+    />
+    <script
+      src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+      integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM="
+      crossorigin=""
+    ></script>
+
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      .leaflet-container {
+        height: 400px;
+        width: 600px;
+        max-width: 100%;
+        max-height: 100%;
+      }
+      .leaflet-container .leaflet-marker-pane img,
+      .leaflet-container .leaflet-shadow-pane img,
+      .leaflet-container .leaflet-tile-pane img,
+      .leaflet-container img.leaflet-image-layer,
+      .leaflet-container .leaflet-tile {
+        image-rendering: pixelated;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+
+    <script type="text/javascript">
+      globalTileSize = 32;
+      trueTileSize = 512;
+      const map = L.map("map", {
+        crs: L.CRS.Simple,
+        center: [0, 0],
+        maxBounds: [
+          [0, 0],
+          [-globalTileSize, globalTileSize],
+        ],
+        zoom: 4,
+        // zoomSnap: 0.1,
+      });
+
+      L.TileLayer.Kaleidoscope = L.TileLayer.extend({
+        createTile: function (coords) {
+          zoom = Math.floor(coords.z / 9);
+          src = this.getTileUrl(coords);
+          img = document.createElement("img");
+          img.src = src;
+
+          if (
+            coords.x < 0 ||
+            coords.x >= zoom * 2 * trueTileSize ||
+            coords.y < 0 ||
+            coords.y >= zoom * 2 * trueTileSize
+          ) {
+            if (coords.x != 0 || coords.y != 0 || zoom != 0) {
+              var emptyTile = document.createElement("div");
+              emptyTile.innerHTML = [coords.x, coords.y, zoom].join(", ");
+              emptyTile.style.outline = "1px solid red";
+              return emptyTile;
+            }
+          }
+
+          return img;
+          return img;
+        },
+        getTileUrl: function (coords) {
+          coom = Math.floor(coords.z / 9);
+          if (coom <= 0) {
+            return "./1.png";
+          }
+          var pixel = this._getPixel(coords.x, coords.y, coom - 1);
+          var [r, g, b] = pixel;
+          return this._getPixelArt(r, g, b, coords.z);
+        },
+        _getPixelArt: function (r, g, b, zoom) {
+          var i = r + g + b > 128 ? 1 : 0;
+          return "https://placekitten.com/512/512?image=" + i;
+          var i = 0.2126 * r + 0.7152 * g + 0.0722 * b > 64 ? "./white.jpg" : "./black.jpg";
+          return i;
+        },
+        _getPixel: function (x, y, z) {
+          if (z > 0) {
+            return this._getPixel(x / 512, y / 512, z - 1);
+          }
+          this._getPixel._cache = this._getPixel._cache || {};
+          if (this._getPixel._cache[z]) {
+            var context = this._getPixel._cache[z];
+          } else {
+            var img = new Image();
+            img.src = this.getTileUrl({ x: x, y: y, z: z });
+            var canvas = document.createElement("canvas");
+            canvas.width = trueTileSize;
+            canvas.height = trueTileSize;
+            var context = canvas.getContext("2d", { willReadFrequently: true });
+            context.drawImage(img, 0, 0);
+            context.will;
+            this._getPixel._cache[z] = context;
+          }
+          return context.getImageData(x, y, 1, 1).data;
+        },
+        _getZoomForUrl: function () {
+          var zoom = this._tileZoom,
+            maxZoom = this.options.maxZoom,
+            zoomReverse = this.options.zoomReverse,
+            zoomOffset = this.options.zoomOffset;
+
+          if (zoomReverse) {
+            zoom = maxZoom - zoom;
+          }
+
+          zoom += zoomOffset;
+
+          return this._mapNativeZoom(zoom);
+        },
+        getTileSize: function () {
+          var map = this._map,
+            tileSize = this.options.tileSize,
+            tileSize = L.GridLayer.prototype.getTileSize.call(this),
+            zoom = this._tileZoom + this.options.zoomOffset,
+            nativeZoom = this._mapNativeZoom(zoom);
+
+          return nativeZoom == zoom ? tileSize : tileSize.divideBy(map.getZoomScale(nativeZoom, zoom)).round();
+        },
+        _mapNativeZoom: function (zoom) {
+          var zooms = this.options.nativeZooms,
+            minNativeZoom = this.options.minNativeZoom,
+            maxNativeZoom = this.options.maxNativeZoom;
+
+          if (zooms && zooms.length > 0) {
+            var prevZoom = -1,
+              minZoom = 100,
+              i;
+            for (i = 0; i < zooms.length; i++) {
+              if (zooms[i] <= zoom && zooms[i] > prevZoom) prevZoom = zooms[i];
+              if (zooms[i] < minZoom) minZoom = zooms[i];
+            }
+            zoom = prevZoom < 0 ? minZoom : prevZoom;
+          } else if (maxNativeZoom !== null && zoom > maxNativeZoom) {
+            zoom = maxNativeZoom;
+          } else if (minNativeZoom !== null && zoom < minNativeZoom) {
+            zoom = minNativeZoom;
+          }
+          return zoom;
+        },
+      });
+
+      L.tileLayer.kaleidoscope = function (url, options) {
+        return new L.TileLayer.Kaleidoscope(url, options);
+      };
+
+      const kittenTiles = L.tileLayer.kaleidoscope("./{z}.png", {
+        tileSize: globalTileSize,
+        nativeZooms: [0, 9],
+      });
+      map.addLayer(kittenTiles);
+    </script>
+  </body>
+</html>
